@@ -3,6 +3,7 @@ import AdminLayout from '../layouts/AdminLayout';
 import Dashboard from '../pages/Dashboard';
 import Tables from '../pages/Table';
 import Login from '../pages/Login';
+import MenuCategories from "../pages/MenuCategories";
 import ProtectedRoute from './ProtectedRoute';
 
 export default function App() {
@@ -19,7 +20,7 @@ export default function App() {
       >
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="tables" element={<Tables />} />
-        
+        <Route path="/menu/categories" element={<MenuCategories />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" />} />

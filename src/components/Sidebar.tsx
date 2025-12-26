@@ -34,6 +34,18 @@ export default function Sidebar() {
         >
           Tables
         </NavLink>
+        <NavLink 
+          to="/menu/categories" 
+          className={({ isActive }) =>
+            `block px-4 py-4 text-white hover:bg-[#395068] ${
+              isActive
+                ? 'border-l-2 border-red-500 bg-[#31557c]'
+                : ''
+            }`
+          }
+        >
+          Categories
+        </NavLink>
       </nav>
 
       <div className="p-4 border-t border-white flex items-center gap-3">
