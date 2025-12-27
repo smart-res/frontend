@@ -15,9 +15,9 @@ import {
   getAdminCategories,
   patchAdminCategoryStatus,
   updateAdminCategory,
-} from "../api/menu";
-import type { CategoryStatus, MenuCategory } from "../types/menu";
-import { CategoryFormModal } from "../components/menu/CategoryFormModal";
+} from "../../api/admin/menu";
+import type { CategoryStatus, MenuCategory } from "../../types/menu";
+import { CategoryFormModal } from "../../components/menu/CategoryFormModal";
 
 const LIMIT_OPTIONS = [10, 20, 50];
 

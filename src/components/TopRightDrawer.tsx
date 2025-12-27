@@ -7,12 +7,15 @@ const MENU_SECTIONS = [
     items: [
       { label: 'Login', to: '/user/login' },
       { label: 'Register', to: '/user/register' },
+      { label: 'Menu', to: '/customer/menu' },
     ],
   },
   {
     title: 'Admin panel',
     items: [
       { label: 'Dashboard', to: '/dashboard' },
+      { label: 'Menu Items', to: '/menu/items' },
+      { label: 'Categories', to: '/menu/categories' },
       { label: 'Tables', to: '/tables' },
     ],
   },

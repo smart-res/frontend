@@ -22,8 +22,8 @@ export default function Sidebar() {
         >
           Dashboard
         </NavLink>
-        <NavLink
-          to="/tables"
+        <NavLink 
+          to="/menu/items" 
           className={({ isActive }) =>
             `block px-4 py-4 text-white hover:bg-[#395068] ${
               isActive
@@ -32,7 +32,7 @@ export default function Sidebar() {
             }`
           }
         >
-          Tables
+          Menu Items
         </NavLink>
         <NavLink 
           to="/menu/categories" 
@@ -45,6 +45,18 @@ export default function Sidebar() {
           }
         >
           Categories
+        </NavLink>
+        <NavLink
+          to="/tables"
+          className={({ isActive }) =>
+            `block px-4 py-4 text-white hover:bg-[#395068] ${
+              isActive
+                ? 'border-l-2 border-red-500 bg-[#31557c]'
+                : ''
+            }`
+          }
+        >
+          Tables
         </NavLink>
       </nav>
 

@@ -1,5 +1,5 @@
-import api from "./axios";
-import type { Table, TableStatus } from "../types/tables";
+import api from "../axios";
+import type { Table, TableStatus } from "../../types/tables";
 
 export const getTables = async (params?: {
    status?: TableStatus;

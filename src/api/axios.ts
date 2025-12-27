@@ -1,25 +1,103 @@
-import axios from "axios";
-import { AxiosError } from "axios";
+import axios, { AxiosError } from "axios";
 import type { AxiosRequestConfig } from "axios";
 
+const BASE_URL = import.meta.env.VITE_API_URL;
+
 const api = axios.create({
-   baseURL: import.meta.env.VITE_API_URL,
-   withCredentials: true,
+  baseURL: BASE_URL,
+  withCredentials: true,
+});
+
+const refreshClient = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
 });
 
 function getAccessToken() {
   return localStorage.getItem("accessToken");
 }
-function setAccessToken(token: string) {
-  localStorage.setItem("accessToken", token);
+
+let proactiveTimer: number | null = null;
+function cancelProactiveRefresh() {
+  if (proactiveTimer != null) {
+    window.clearTimeout(proactiveTimer);
+    proactiveTimer = null;
+  }
 }
-function clearAccessToken() {
+
+function decodeJwtExp(token: string): number | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof json?.exp === "number" ? json.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+const REFRESH_BUFFER_MS = 60_000;
+
+function scheduleProactiveRefresh(token: string) {
+  cancelProactiveRefresh();
+
+  const expSec = decodeJwtExp(token);
+  if (!expSec) return;
+
+  const expMs = expSec * 1000;
+  const delay = Math.max(0, expMs - REFRESH_BUFFER_MS - Date.now());
+
+  proactiveTimer = window.setTimeout(() => {
+    refreshAccessToken().catch(() => {
+      clearAccessToken();
+      window.location.href = "/login";
+    });
+  }, delay);
+}
+
+export function setAccessToken(token: string) {
+  localStorage.setItem("accessToken", token);
+  scheduleProactiveRefresh(token);
+}
+
+export function clearAccessToken() {
   localStorage.removeItem("accessToken");
+  cancelProactiveRefresh();
+}
+
+export function initAuthProactiveRefresh() {
+  const token = getAccessToken();
+  if (token) scheduleProactiveRefresh(token);
+}
+
+let refreshPromise: Promise<string> | null = null;
+
+export async function refreshAccessToken(): Promise<string> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const res = await refreshClient.post("/api/admin/auth/refresh");
+    const newToken = (res.data as any)?.accessToken as string;
+
+    if (!newToken) throw new Error("Refresh did not return accessToken");
+
+    setAccessToken(newToken);
+    return newToken;
+  })();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
 }
 
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers = config.headers ?? {};
+    (config.headers as any).Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -38,11 +116,9 @@ api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const status = error.response?.status;
-    const original = error.config as (AxiosRequestConfig & { _retry?: boolean });
+    const original = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    if (status !== 401 || original?._retry) {
-      return Promise.reject(error);
-    }
+    if (status !== 401 || original?._retry) return Promise.reject(error);
 
     const url = original.url ?? "";
     if (url.includes("/api/admin/auth/refresh") || url.includes("/api/admin/auth/login")) {
@@ -67,12 +143,7 @@ api.interceptors.response.use(
 
     isRefreshing = true;
     try {
-      const res = await api.post("/api/admin/auth/refresh");
-      const newToken = (res.data as any).accessToken as string;
-
-      if (!newToken) throw new Error("Refresh did not return accessToken");
-
-      setAccessToken(newToken);
+      const newToken = await refreshAccessToken();
       flushQueue(null, newToken);
 
       original.headers = original.headers ?? {};
