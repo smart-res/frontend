@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
-import type { Table } from "../types/tables";
+import type { Table } from "../../types/tables";
 import {
    getTables,
    generateTableQR,
    updateTableStatus,
    regenerateAllTableQR,
-} from "../api/tables";
+} from "../../api/admin/tables";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
-import StatsCard from "../components/tables/StatsCard";
-import TablesGrid from "../components/tables/TablesGrid";
-import QRCodeModal from "../components/tables/QRCodeModal";
-import TableForm from "../components/tables/TableForm";
-import { createTable, updateTable } from "../api/tables";
+import StatsCard from "../../components/tables/StatsCard";
+import TablesGrid from "../../components/tables/TablesGrid";
+import QRCodeModal from "../../components/tables/QRCodeModal";
+import TableForm from "../../components/tables/TableForm";
+import { createTable, updateTable } from "../../api/admin/tables";
 
 const Tables = () => {
    const [tables, setTables] = useState<Table[]>([]);

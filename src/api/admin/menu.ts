@@ -1,5 +1,5 @@
-import api from "./axios";
-import type { CategoryStatus, MenuCategory, Paginated } from "../types/menu";
+import api from "../axios";
+import type { CategoryStatus, MenuCategory, Paginated } from "../../types/menu";
 
 export type CategorySortBy = "displayOrder" | "name" | "createdAt";
 export type SortDir = "asc" | "desc";

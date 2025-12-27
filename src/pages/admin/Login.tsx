@@ -1,6 +1,6 @@
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
-import { loginApi } from '../api/auth';
+import { loginApi } from '../../api/admin/auth';
 import { useNavigate } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { useState } from 'react';

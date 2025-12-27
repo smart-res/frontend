@@ -1,4 +1,4 @@
-import { logoutApi } from '../api/auth';
+import { logoutApi } from '../../api/admin/auth';
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
