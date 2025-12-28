@@ -1,1 +1,12 @@
 @import "tailwindcss";
+
+/* Chrome, Edge, Safari */
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none;
+}
+
+/* Edge */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
