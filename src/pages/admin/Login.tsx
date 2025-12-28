@@ -4,6 +4,7 @@ import { loginApi } from '../../api/admin/auth';
 import { useNavigate } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { useState } from 'react';
+import { Eye, EyeOff, Loader2, UtensilsCrossed } from 'lucide-react';
 
 type LoginForm = {
   username: string;
@@ -15,6 +16,7 @@ type ServerError = {
 };
 
 export default function Login() {
+  const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     handleSubmit,
@@ -33,9 +35,7 @@ export default function Login() {
       navigate('/dashboard');
     },
     onError: (error: AxiosError<ServerError>) => {
-      setServerError(
-        error.response?.data?.message || 'Login failed',
-      );
+      setServerError(error.response?.data?.message || 'Invalid credentials. Please try again.');
     },
   });
 
@@ -45,78 +45,115 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="bg-white p-6 rounded-lg shadow-md w-100 space-y-4"
-      >
-        <h2 className="text-2xl font-semibold text-center">
-          Admin Login
-        </h2>
+    <div className="min-h-screen flex items-center justify-center bg-[#F8F9FA] p-4 font-sans">
+      {/* Main Card */}
+      <div className="flex w-full max-w-[1000px] bg-white rounded-3xl shadow-2xl overflow-hidden min-h-[600px]">
+        
+        {/* Left Side: Branding/Illustration (Hidden on Mobile) */}
+        <div className="hidden md:flex md:w-1/2 bg-[#1A2F2F] p-12 flex-col justify-between relative overflow-hidden">
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 text-[#E2B13C]">
+              <UtensilsCrossed size={32} />
+              <span className="text-2xl font-bold tracking-tight text-white">Smart Restaurant</span>
+            </div>
+            <h1 className="mt-20 text-4xl font-light text-white leading-tight">
+              Control your <span className="font-semibold text-[#E2B13C]">Restaurant</span> <br /> 
+              from anywhere.
+            </h1>
+          </div>
+          
+          <div className="relative z-10 text-gray-400 text-sm">
+            © 2024 Smart Restaurant OS. All rights reserved.
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Username
-          </label>
-          <input
-            placeholder='Username'
-            className={`w-full p-2 border rounded focus:outline-none focus:ring-2
-              ${
-                errors.username
-                  ? 'border-red-500 focus:ring-red-500'
-                  : 'focus:ring-blue-500'
-              }
-            `}
-            {...register('username', {
-              required: 'Username is required',
-            })}
-          />
-          {errors.username && (
-            <p className="text-red-500 text-xs mt-1">
-              {errors.username.message}
-            </p>
-          )}
+          {/* Decorative Tech-Circles */}
+          <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#E2B13C] opacity-10 rounded-full blur-3xl"></div>
+          <div className="absolute top-40 right-0 w-40 h-40 bg-white opacity-5 rounded-full blur-2xl"></div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Password
-          </label>
-          <input
-            type="password"
-            placeholder='Password'
-            className={`w-full p-2 border rounded focus:outline-none focus:ring-2
-              ${
-                errors.password
-                  ? 'border-red-500 focus:ring-red-500'
-                  : 'focus:ring-blue-500'
-              }
-            `}
-            {...register('password', {
-              required: 'Password is required',
-            })}
-          />
-          {errors.password && (
-            <p className="text-red-500 text-xs mt-1">
-              {errors.password.message}
-            </p>
-          )}
+        {/* Right Side: Login Form */}
+        <div className="w-full md:w-1/2 p-8 md:p-16 flex flex-col justify-center">
+          <div className="mb-10">
+            <h2 className="text-3xl font-bold text-[#1A2F2F]">Admin Login</h2>
+            <p className="text-gray-500 mt-2">Manage your restaurant efficiently</p>
+          </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {/* Username Field */}
+            <div>
+              <label className="block text-sm font-semibold text-[#1A2F2F] mb-2">Username / Email</label>
+              <input
+                placeholder="e.g. admin@restaurant.com"
+                className={`w-full px-4 py-3 rounded-xl border transition-all duration-200 outline-none
+                  ${errors.username 
+                    ? 'border-red-500 bg-red-50' 
+                    : 'border-gray-200 focus:border-[#1A2F2F] focus:ring-4 focus:ring-[#1A2F2F]/5'
+                  }`}
+                {...register('username', { required: 'Username is required' })}
+              />
+              {errors.username && (
+                <p className="text-red-500 text-xs mt-1 font-medium">{errors.username.message}</p>
+              )}
+            </div>
+
+            {/* Password Field */}
+            <div>
+              <div className="flex justify-between mb-2">
+                <label className="text-sm font-semibold text-[#1A2F2F]">Password</label>
+              </div>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  className={`w-full px-4 py-3 rounded-xl border transition-all duration-200 outline-none
+                    ${errors.password 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-[#1A2F2F] focus:ring-4 focus:ring-[#1A2F2F]/5'
+                    }`}
+                  {...register('password', { required: 'Password is required' })}
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="text-red-500 text-xs mt-1 font-medium">{errors.password.message}</p>
+              )}
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="w-full bg-[#1A2F2F] text-white py-4 rounded-xl font-bold text-lg hover:bg-[#243f3f] 
+                transition-all transform active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed
+                flex items-center justify-center gap-2 shadow-lg shadow-[#1A2F2F]/20"
+            >
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  Authenticating...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+
+            {/* Server Error Message */}
+            {serverError && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-100 animate-shake">
+                <p className="text-red-600 text-sm text-center font-medium">
+                  {serverError}
+                </p>
+              </div>
+            )}
+          </form>
         </div>
-
-        <button
-          type="submit"
-          disabled={mutation.isPending}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-        >
-          {mutation.isPending ? 'Logging in...' : 'Login'}
-        </button>
-
-        {serverError && (
-          <p className="text-red-600 text-sm text-center">
-            {serverError}
-          </p>
-        )}
-      </form>
+      </div>
     </div>
   );
 }
