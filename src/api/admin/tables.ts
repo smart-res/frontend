@@ -35,6 +35,13 @@ export const updateTableStatus = async (
    return { ...res.data, id: res.data._id };
 };
 
+export const getTableQR = async (
+   id: string
+): Promise<{ qrUrl: string; token: string; createdAt: string }> => {
+   const res = await api.get(`/api/admin/tables/${id}/qr`);
+   return res.data;
+};
+
 export const generateTableQR = async (
    id: string
 ): Promise<{ qrUrl: string; token: string; createdAt: string }> => {

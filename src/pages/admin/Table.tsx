@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { Table } from "../../types/tables";
 import {
-   getTables,
-   generateTableQR,
-   updateTableStatus,
-   regenerateAllTableQR,
+  getTables,
+  getTableQR,
+  generateTableQR,
+  updateTableStatus,
+  regenerateAllTableQR,
 } from "../../api/admin/tables";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -13,211 +14,336 @@ import TablesGrid from "../../components/tables/TablesGrid";
 import QRCodeModal from "../../components/tables/QRCodeModal";
 import TableForm from "../../components/tables/TableForm";
 import { createTable, updateTable } from "../../api/admin/tables";
+import {
+  Plus,
+  Download,
+  RefreshCcw,
+  Layers,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Loader2,
+} from "lucide-react";
 
 const Tables = () => {
-   const [tables, setTables] = useState<Table[]>([]);
-   const [loading, setLoading] = useState(false);
-   const [openForm, setOpenForm] = useState(false);
-   const [editingTable, setEditingTable] = useState<Table | null>(null);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [openForm, setOpenForm] = useState(false);
+  const [editingTable, setEditingTable] = useState<Table | null>(null);
+  const [confirmRegenAllOpen, setConfirmRegenAllOpen] = useState(false);
+  const [regenAllLoading, setRegenAllLoading] = useState(false);
+  const [regenAllError, setRegenAllError] = useState<string | null>(null);
 
-   const [qrData, setQrData] = useState<{
-      tableId: string;
-      tableName: string;
-      capacity?: number;
-      location?: string;
-      qrUrl: string;
-      createdAt?: string;
-      scansToday?: number;
-   } | null>(null);
+  const [qrData, setQrData] = useState<{
+    tableId: string;
+    tableName: string;
+    capacity?: number;
+    location?: string;
+    qrUrl: string;
+    createdAt?: string;
+    scansToday?: number;
+  } | null>(null);
 
-   const fetchTables = async () => {
-      try {
-         setLoading(true);
-         const data = await getTables();
-         setTables(data);
-      } finally {
-         setLoading(false);
-      }
-   };
+  const fetchTables = async () => {
+    try {
+      setLoading(true);
+      const data = await getTables();
+      setTables(data);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-   useEffect(() => {
-      fetchTables();
-   }, []);
+  useEffect(() => {
+    fetchTables();
+  }, []);
 
-   const handleGenerateQR = async (table: Table) => {
-      const res = await generateTableQR(table.id);
+  const handleGetQR = async (table: Table) => {
+    const res = await getTableQR(table.id);
 
-      setQrData({
-         tableId: table.id,
-         tableName: table.tableNumber,
-         capacity: table.capacity,
-         location: table.location,
-         qrUrl: res.qrUrl,
-         createdAt: res.createdAt,
+    setQrData({
+      tableId: table.id,
+      tableName: table.tableNumber,
+      capacity: table.capacity,
+      location: table.location,
+      qrUrl: res.qrUrl,
+      createdAt: res.createdAt,
+    });
+  };
+
+  const handleRegenerateQR = async (tableId: string) => {
+    const res = await generateTableQR(tableId);
+    setQrData((prev) =>
+      prev
+        ? {
+            ...prev,
+            qrUrl: res.qrUrl,
+            createdAt: res.createdAt,
+          }
+        : null
+    );
+  };
+
+  const handleToggleStatus = async (table: Table) => {
+    const newStatus = table.status === "active" ? "inactive" : "active";
+    await updateTableStatus(table.id, newStatus);
+    fetchTables();
+  };
+
+  const handleEdit = (table: Table) => {
+    setEditingTable(table);
+    setOpenForm(true);
+  };
+
+  const handleSubmitTable = async (data: Partial<Table>) => {
+    if (editingTable) {
+      await updateTable(editingTable.id, data);
+    } else {
+      await createTable(data);
+    }
+    await fetchTables();
+  };
+
+  const handleDownloadAllQR = async () => {
+    const zip = new JSZip();
+    const activeTables = tables.filter((t) => t.status === "active");
+
+    for (const table of activeTables) {
+      if (!table.qrToken) continue;
+
+      const res = await fetch(`/api/admin/tables/${table.id}/qr/download?format=png`, {
+        credentials: "include",
       });
-   };
 
-   const handleRegenerateQR = async (tableId: string) => {
-      const res = await generateTableQR(tableId);
-      setQrData((prev) =>
-         prev
-            ? {
-                 ...prev,
-                 qrUrl: res.qrUrl,
-                 createdAt: res.createdAt,
-              }
-            : null
-      );
-   };
+      const blob = await res.blob();
+      zip.file(`table-${table.tableNumber}-qr.png`, blob);
+    }
 
-   const handleToggleStatus = async (table: Table) => {
-      const newStatus = table.status === "active" ? "inactive" : "active";
-      await updateTableStatus(table.id, newStatus);
-      fetchTables();
-   };
+    const content = await zip.generateAsync({ type: "blob" });
+    saveAs(content, "all-active-tables.zip");
+  };
 
-   const handleEdit = (table: Table) => {
-      setEditingTable(table);
-      setOpenForm(true);
-   };
+  const askRegenerateAllQR = () => {
+    setRegenAllError(null);
+    setConfirmRegenAllOpen(true);
+  };
 
-   const handleSubmitTable = async (data: Partial<Table>) => {
-      try {
-         if (editingTable) {
-            await updateTable(editingTable.id, data);
-         } else {
-            await createTable(data);
-         }
+  const confirmRegenerateAllQR = async () => {
+    try {
+      setRegenAllLoading(true);
+      setRegenAllError(null);
 
-         await fetchTables();
-      } catch (err) {
-         throw err;
-      }
-   };
+      await regenerateAllTableQR();
 
-   const handleDownloadAllQR = async () => {
-      const zip = new JSZip();
-      const activeTables = tables.filter((t) => t.status === "active");
+      setConfirmRegenAllOpen(false);
+      await fetchTables();
+    } catch (error) {
+      setRegenAllError("Failed to regenerate QR codes");
+    } finally {
+      setRegenAllLoading(false);
+    }
+  };
 
-      for (const table of activeTables) {
-         const res = await generateTableQR(table.id);
+  const total = tables.length;
+  const active = tables.filter((t) => t.status === "active").length;
+  const inactive = tables.filter((t) => t.status === "inactive").length;
 
-         const blob = await (await fetch(res.qrUrl)).blob();
-         zip.file(`table-${table.tableNumber}-qr.png`, blob);
-      }
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] p-6 space-y-8 font-sans">
+      {/* Page header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+            Table Management
+          </h1>
+          <p className="text-slate-500 font-medium">
+            Manage restaurant floor plan & generate secure QR codes
+          </p>
+        </div>
 
-      const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, "all-active-tables.zip");
-   };
+        <button
+          onClick={() => setOpenForm(true)}
+          className="inline-flex items-center justify-center cursor-pointer px-6 py-3 gap-2 bg-[#1A2F2F] hover:bg-[#E2B13C] hover:text-[#1A2F2F] rounded-lg text-sm font-bold text-white transition-all shadow-sm active:scale-95"
+        >
+          <Plus size={20} strokeWidth={2.5} />
+          Add New Table
+        </button>
+      </div>
 
-   const handleRegenerateAllQR = async () => {
-      if (
-         !confirm(
-            "Regenerate QR codes for all active tables? Old codes will be invalid."
-         )
-      ) {
-         return;
-      }
+      {/* Summary stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatsCard
+          label="Total Tables"
+          value={total}
+          variant="total"
+          icon={<Layers className="text-slate-600" />}
+        />
+        <StatsCard
+          label="Active"
+          value={active}
+          variant="active"
+          icon={<CheckCircle2 className="text-emerald-600" />}
+        />
+        <StatsCard
+          label="Inactive"
+          value={inactive}
+          variant="inactive"
+          icon={<AlertCircle className="text-rose-600" />}
+        />
+      </div>
 
-      try {
-         const result = await regenerateAllTableQR();
-         alert(
-            `Successfully regenerated QR codes for ${result.affected} tables`
-         );
-         await fetchTables();
-      } catch (error) {
-         alert("Failed to regenerate QR codes");
-         console.error(error);
-      }
-   };
+      {/* All table sections */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50">
+          <h3 className="text-lg font-bold text-slate-800">Restaurant Floor Map</h3>
 
-   const total = tables.length;
-   const active = tables.filter((t) => t.status === "active").length;
-   const inactive = tables.filter((t) => t.status === "inactive").length;
-
-   return (
-      <div className="p-6 space-y-6">
-         <div className="flex justify-between items-center">
-            <div>
-               <h1 className="text-3xl font-bold">Table Management</h1>
-               <p className="text-gray-500">
-                  Manage tables & generate QR codes
-               </p>
-            </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleDownloadAllQR}
+              className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-lg font-bold hover:bg-blue-100 transition-all text-sm"
+            >
+              <Download size={16} />
+              Download All QR
+            </button>
 
             <button
-               onClick={() => setOpenForm(true)}
-               className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+              onClick={askRegenerateAllQR}
+              className="inline-flex items-center gap-2 bg-orange-50 text-orange-700 border border-orange-200 px-4 py-2 rounded-lg font-bold hover:bg-orange-100 transition-all text-sm"
             >
-               + Add Table
+              <RefreshCcw size={16} />
+              Regenerate All
             </button>
-         </div>
+          </div>
+        </div>
 
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatsCard label="Total Tables" value={total} variant="total" />
-            <StatsCard label="Active" value={active} variant="active" />
-            <StatsCard label="Inactive" value={inactive} variant="inactive" />
-         </div>
-
-         <div className="bg-white p-6 rounded shadow space-y-4">
-            <div className="flex justify-between items-center">
-               <h3 className="text-xl font-bold">All Tables</h3>
-
-               <div className="flex gap-2">
-                  <button
-                     onClick={handleDownloadAllQR}
-                     className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                  >
-                     Download All QR Codes
-                  </button>
-                  <button
-                     onClick={handleRegenerateAllQR}
-                     className="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"
-                  >
-                     Regenerate All QR
-                  </button>
-               </div>
+        <div className="p-6">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className="w-10 h-10 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
+              <p className="text-slate-400 font-medium">Loading layout...</p>
             </div>
-
-            {loading ? (
-               <div className="text-gray-500">Loading tables...</div>
-            ) : (
-               <TablesGrid
-                  tables={tables}
-                  onGenerateQR={handleGenerateQR}
-                  onEdit={handleEdit}
-                  onToggleStatus={handleToggleStatus}
-               />
-            )}
-         </div>
-
-         {qrData && (
-            <QRCodeModal
-               open
-               onClose={() => setQrData(null)}
-               tableId={qrData.tableId}
-               tableName={qrData.tableName}
-               capacity={qrData.capacity}
-               location={qrData.location}
-               qrUrl={qrData.qrUrl}
-               createdAt={qrData.createdAt}
-               scansToday={qrData.scansToday}
-               onRegenerate={handleRegenerateQR}
+          ) : (
+            <TablesGrid
+              tables={tables}
+              onGetQR={handleGetQR}
+              onEdit={handleEdit}
+              onToggleStatus={handleToggleStatus}
             />
-         )}
-
-         <TableForm
-            open={openForm}
-            onClose={() => {
-               setOpenForm(false);
-               setEditingTable(null);
-            }}
-            onSubmit={handleSubmitTable}
-            existingTables={tables}
-            initialData={editingTable ?? undefined}
-         />
+          )}
+        </div>
       </div>
-   );
+
+      {qrData && (
+        <QRCodeModal
+          open
+          onClose={() => setQrData(null)}
+          tableId={qrData.tableId}
+          tableName={qrData.tableName}
+          capacity={qrData.capacity}
+          location={qrData.location}
+          qrUrl={qrData.qrUrl}
+          createdAt={qrData.createdAt}
+          scansToday={qrData.scansToday}
+          onRegenerate={handleRegenerateQR}
+        />
+      )}
+
+      <TableForm
+        open={openForm}
+        onClose={() => {
+          setOpenForm(false);
+          setEditingTable(null);
+        }}
+        onSubmit={handleSubmitTable}
+        existingTables={tables}
+        initialData={editingTable ?? undefined}
+      />
+
+      {confirmRegenAllOpen && (
+        <ConfirmDialog
+          title="Regenerate all QR codes?"
+          message="Regenerating will invalidate previous codes. Use this only if the table link needs to be reset."
+          confirmText={regenAllLoading ? "Regenerating..." : "Regenerate"}
+          cancelText="Cancel"
+          disabled={regenAllLoading}
+          error={regenAllError}
+          onCancel={() => !regenAllLoading && setConfirmRegenAllOpen(false)}
+          onConfirm={confirmRegenerateAllQR}
+        />
+      )}
+    </div>
+  );
+};
+
+const ConfirmDialog = ({
+  title,
+  message,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+  disabled,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  disabled?: boolean;
+  error?: string | null;
+  onConfirm: () => void | Promise<void>;
+  onCancel: () => void;
+}) => {
+  return (
+    <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-6 animate-in fade-in duration-150">
+      <div className="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="px-6 py-5 border-b border-slate-100">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h4 className="text-base sm:text-lg font-black text-slate-800">{title}</h4>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">{message}</p>
+            </div>
+            <button
+              onClick={onCancel}
+              className="p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+              aria-label="Close"
+              type="button"
+              disabled={disabled}
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {error && (
+            <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
+              <p className="text-sm font-semibold text-rose-700">{error}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 flex flex-col sm:flex-row gap-2 sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={disabled}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {cancelText}
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={disabled}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+          >
+            {disabled ? <Loader2 className="animate-spin" size={16} /> : null}
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default Tables;

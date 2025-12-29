@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Search,
   Plus,
@@ -7,9 +7,9 @@ import {
   Power,
   ChevronLeft,
   ChevronRight,
-  LayoutGrid
+  Filter,
 } from "lucide-react";
-
+import toast from "react-hot-toast";
 import {
   createAdminCategory,
   getAdminCategories,
@@ -26,272 +26,335 @@ export default function MenuCategories() {
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<CategoryStatus | "all">("all");
-  const [sortBy, setSortBy] = useState<"displayOrder" | "name" | "createdAt">("displayOrder");
+  const [sortBy, setSortBy] = useState<"displayOrder" | "name" | "createdAt">(
+    "displayOrder"
+  );
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingList, setLoadingList] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editing, setEditing] = useState<MenuCategory | null>(null);
   const [formError, setFormError] = useState<{ field?: "name"; message: string } | null>(null);
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
+  const reqIdRef = useRef(0);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(total / limit)),
+    [total, limit]
+  );
 
   async function load() {
-    setLoading(true);
-    setError(null);
+    const reqId = ++reqIdRef.current;
+    setLoadingList(true);
+
     try {
-      const res = await getAdminCategories({ q: q || undefined, status, sortBy, sortDir, page, limit });
+      const res = await getAdminCategories({
+        q: q || undefined,
+        status: status === "all" ? undefined : status,
+        sortBy,
+        sortDir,
+        page,
+        limit,
+      });
+
+      if (reqId !== reqIdRef.current) return;
       setRows(res.items);
       setTotal(res.total);
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? "Failed to load categories");
+      if (reqId !== reqIdRef.current) return;
+      toast.error(e?.response?.data?.message ?? "Failed to load categories");
     } finally {
-      setLoading(false);
+      if (reqId === reqIdRef.current) setLoadingList(false);
     }
   }
 
-  useEffect(() => { load(); }, [q, status, sortBy, sortDir, page, limit]);
+  useEffect(() => {
+    load();
+  }, [q, status, sortBy, sortDir, page, limit]);
 
-  function openCreate() { 
+  function openCreate() {
     setFormError(null);
-    setModalMode("create"); 
-    setEditing(null); 
-    setModalOpen(true); 
+    setModalMode("create");
+    setEditing(null);
+    setModalOpen(true);
   }
-  function openEdit(cat: MenuCategory) { 
+  function openEdit(cat: MenuCategory) {
     setFormError(null);
-    setModalMode("edit"); 
-    setEditing(cat); 
-    setModalOpen(true); 
+    setModalMode("edit");
+    setEditing(cat);
+    setModalOpen(true);
   }
 
   async function handleSave(values: any) {
-    setLoading(true);
-    setError(null);
+    setSaving(true);
     setFormError(null);
+
     try {
       if (modalMode === "create") await createAdminCategory(values);
       else if (editing?._id) await updateAdminCategory(editing._id, values);
+
       setModalOpen(false);
       await load();
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? "Save failed";
-      const status = e?.response?.status;
-
-      if (status === 409 && /exists|already/i.test(msg)) {
+      if (e?.response?.status === 409) {
         setFormError({ field: "name", message: msg });
         return;
       }
-      setError(msg);
+      toast.error(msg);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }
 
+
   async function toggleStatus(cat: MenuCategory) {
     const next: CategoryStatus = cat.status === "active" ? "inactive" : "active";
-    setRows((prev) => prev.map((r) => (r._id === cat._id ? { ...r, status: next } : r)));
+    setRows((prev) =>
+      prev.map((r) => (r._id === cat._id ? { ...r, status: next } : r))
+    );
     try {
       await patchAdminCategoryStatus(cat._id, next);
     } catch (e: any) {
       setRows((prev) => prev.map((r) => (r._id === cat._id ? cat : r)));
-      setError(e?.response?.data?.message ?? "Failed to change status");
+      toast.error(e?.response?.data?.message ?? "Failed to change status");
     }
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Menu Categories</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your menu structure and visibility settings.</p>
-        </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-500 hover:shadow-indigo-200 focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2"
-        >
-          <Plus size={18} />
-          Add Category
-        </button>
-      </div>
-
-      {/* Control Bar */}
-      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:grid-cols-12">
-        <div className="relative md:col-span-5">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            value={q}
-            onChange={(e) => { setPage(1); setQ(e.target.value); }}
-            placeholder="Search categories..."
-            className="w-full rounded-xl border-gray-200 bg-gray-50 pl-10 pr-4 py-2.5 text-sm transition-focus focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 outline-none"
-          />
-        </div>
-
-        <div className="md:col-span-3">
-          <select
-            value={status}
-            onChange={(e) => { setPage(1); setStatus(e.target.value as any); }}
-            className="w-full rounded-xl border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition-focus focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-
-        <div className="flex gap-2 md:col-span-4">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="w-full rounded-xl border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none transition-focus focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-          >
-            <option value="displayOrder">Sort by: Order</option>
-            <option value="name">Sort by: Name</option>
-            <option value="createdAt">Sort by: Date</option>
-          </select>
+    <div className="min-h-screen bg-[#F9FAFB] p-4 md:p-6 font-sans text-slate-900">
+      <div className="max-w-7xl mx-auto space-y-4 md:space-y-6">
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Menu Categories
+            </h1>
+            <p className="text-sm md:text-base text-slate-500 font-medium leading-relaxed">
+              Manage category visibility and display order.
+            </p>
+          </div>
           <button
-            onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
-            className="flex items-center justify-center rounded-xl border border-gray-200 bg-white px-3 py-2 hover:bg-gray-50 transition-colors shadow-sm"
+            onClick={openCreate}
+            className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 gap-2 bg-[#1A2F2F] hover:bg-[#E2B13C] hover:text-[#1A2F2F] rounded-xl text-sm font-bold text-white transition-all shadow-md active:scale-95"
           >
-            <ArrowUpDown size={18} className="text-gray-500" />
+            <Plus size={18} />
+            Add Category
           </button>
         </div>
-      </div>
 
-      {error && (
-        <div className="flex items-center gap-3 rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-600 animate-in fade-in slide-in-from-top-1">
-          <span className="h-2 w-2 rounded-full bg-red-600" />
-          {error}
-        </div>
-      )}
+        {/* Filter Bar */}
+        <div className="flex flex-col lg:flex-row gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="relative flex-1">
+            <Search
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              size={16}
+            />
+            <input
+              value={q}
+              onChange={(e) => {
+                setPage(1);
+                setQ(e.target.value);
+              }}
+              placeholder="Search categories..."
+              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-[#E2B13C]/20 focus:bg-white transition-all outline-none"
+            />
+          </div>
 
-      {/* Table Section */}
-      <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="px-6 py-4 font-semibold text-gray-600">Category Name</th>
-                <th className="px-6 py-4 font-semibold text-gray-600">Visibility</th>
-                <th className="px-6 py-4 font-semibold text-gray-600">Order</th>
-                <th className="px-6 py-4 text-right font-semibold text-gray-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={4} className="px-6 py-6 h-16 bg-gray-50/30" />
-                  </tr>
-                ))
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td className="px-6 py-12 text-center" colSpan={4}>
-                    <div className="flex flex-col items-center gap-2 text-gray-400">
-                      <LayoutGrid size={40} strokeWidth={1} />
-                      <p>No categories found</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                rows.map((cat) => (
-                  <tr key={cat._id} className="group transition-colors hover:bg-gray-50/50">
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-gray-900">{cat.name}</div>
-                      {cat.description && (
-                        <div className="mt-0.5 text-xs text-gray-400 line-clamp-1 max-w-[200px]">{cat.description}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wider transition-colors ${
-                          cat.status === "active"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                            : "bg-red-50 text-red-700 border border-red-100"
-                        }`}
-                      >
-                        <span 
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            cat.status === "active" ? "bg-emerald-500" : "bg-red-500"
-                          }`} 
-                        />
-                        {cat.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-xs font-medium text-gray-600">
-                        {cat.displayOrder ?? 0}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => openEdit(cat)}
-                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                          title="Edit"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => toggleStatus(cat)}
-                          className={`p-2 rounded-lg transition-all ${
-                            cat.status === "active" 
-                            ? "text-gray-400 hover:text-red-600 hover:bg-red-50"
-                            : "text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
-                          }`}
-                          title={cat.status === "active" ? "Deactivate" : "Activate"}
-                        >
-                          <Power size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Improved Pagination */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100 bg-white px-6 py-4">
-          <p className="text-sm text-gray-500">
-            Showing <span className="font-semibold text-gray-900">{rows.length}</span> of{" "}
-            <span className="font-semibold text-gray-900">{total}</span> results
-          </p>
-
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
             <select
-              value={limit}
-              onChange={(e) => { setPage(1); setLimit(Number(e.target.value)); }}
-              className="rounded-lg border-gray-200 py-1.5 pl-2 pr-8 text-xs font-medium focus:ring-indigo-500 shadow-sm"
+              value={status}
+              onChange={(e) => {
+                setPage(1);
+                setStatus(e.target.value as any);
+              }}
+              className="flex-1 sm:w-40 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold outline-none cursor-pointer hover:border-slate-300 transition-colors"
             >
-              {LIMIT_OPTIONS.map((n) => (
-                <option key={n} value={n}>{n} / page</option>
-              ))}
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
             </select>
 
-            <div className="flex items-center gap-1">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 shadow-sm transition-all"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <div className="px-4 text-xs font-bold text-gray-700">
-                {page} <span className="text-gray-400 mx-1">/</span> {totalPages}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="flex-1 sm:w-44 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold outline-none cursor-pointer hover:border-slate-300 transition-colors"
+            >
+              <option value="displayOrder">Sort: Order</option>
+              <option value="name">Sort: Name</option>
+            </select>
+
+            <button
+              onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+              className="p-2.5 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <ArrowUpDown
+                size={18}
+                className={`transition-transform duration-300 ${
+                  sortDir === "desc" ? "rotate-180" : "rotate-0"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Content Container */}
+        <div className="bg-white border border-slate-200 shadow-sm overflow-hidden">
+          {/* Desktop Table: Hidden on Mobile */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#1A2F2F] text-white">
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">
+                    Details
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-center">
+                    Visibility
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-center">
+                    Order
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-widest">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {loadingList ? (
+                  <LoadingSkeleton count={limit} />
+                ) : rows.length === 0 ? (
+                  <TableEmptyRow colSpan={4} />
+                ) : (
+                  rows.map((cat) => (
+                    <tr
+                      key={cat._id}
+                      className="group hover:bg-slate-50/50 transition-colors"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-[#1A2F2F] text-base">
+                          {cat.name}
+                        </div>
+                        {cat.description && (
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-1 max-w-xs">
+                            {cat.description}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <StatusBadge status={cat.status} />
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="text-sm font-mono font-black text-slate-400">
+                          #{cat.displayOrder ?? 0}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => openEdit(cat)}
+                            className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <StatusToggle cat={cat} onToggle={toggleStatus} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card View: Hidden on Desktop */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {loadingList ? (
+              <LoadingSkeleton count={3} mobile />
+            ) : rows.length === 0 ? (
+              <EmptyState />
+            ) : (
+              rows.map((cat) => (
+                <div key={cat._id} className="p-5 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <div className="font-bold text-[#1A2F2F] text-lg">
+                        {cat.name}
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-2">
+                        {cat.description}
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono font-black bg-slate-100 px-2 py-1 rounded text-slate-500">
+                      #{cat.displayOrder}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2">
+                    <StatusBadge status={cat.status} />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openEdit(cat)}
+                        className="p-2.5 bg-slate-100 text-slate-600 rounded-xl"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <StatusToggle cat={cat} onToggle={toggleStatus} />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-5 border-t border-slate-100 bg-white gap-4">
+            <div className="text-[11px] text-slate-400 font-black uppercase tracking-widest order-2 sm:order-1">
+              {total} Categories Total
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 order-1 sm:order-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  Rows
+                </span>
+                <select
+                  value={limit}
+                  onChange={(e) => {
+                    setPage(1);
+                    setLimit(Number(e.target.value));
+                  }}
+                  className="bg-slate-50 text-xs font-bold text-[#1A2F2F] outline-none cursor-pointer border border-slate-200 rounded-lg px-2 py-1"
+                >
+                  {LIMIT_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 shadow-sm transition-all"
-              >
-                <ChevronRight size={16} />
-              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="p-2 text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <div className="text-xs font-black text-slate-700 min-w-[60px] text-center bg-slate-100 py-1 rounded-full">
+                  {page} / {totalPages}
+                </div>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="p-2 text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -303,9 +366,89 @@ export default function MenuCategories() {
         initial={editing}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSave}
-        loading={loading}
+        loading={saving}
         serverFieldError={formError}
       />
     </div>
   );
 }
+
+const StatusBadge = ({ status }: { status: CategoryStatus }) => (
+  <span
+    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+      status === "active"
+        ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+        : "bg-rose-50 text-rose-700 border-rose-100"
+    }`}
+  >
+    <span
+      className={`w-1.5 h-1.5 rounded-full ${
+        status === "active" ? "bg-emerald-500" : "bg-rose-500"
+      }`}
+    />
+    {status}
+  </span>
+);
+
+const StatusToggle = ({ cat, onToggle }: { cat: MenuCategory; onToggle: any }) => (
+  <button
+    onClick={() => onToggle(cat)}
+    className={`p-2 rounded-lg transition-all border shadow-sm ${
+      cat.status === "active"
+        ? "bg-rose-500 text-white border-rose-600 hover:bg-rose-600"
+        : "bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600"
+    }`}
+  >
+    <Power size={16} />
+  </button>
+);
+
+const TableEmptyRow = ({ colSpan }: { colSpan: number }) => (
+  <tr>
+    <td colSpan={colSpan} className="px-6 py-16 text-center">
+      <div className="mx-auto w-12 h-12 bg-slate-50 flex items-center justify-center rounded-full mb-3">
+        <Filter className="text-slate-300" size={24} />
+      </div>
+      <p className="text-slate-400 text-sm font-medium">
+        No categories matching your filters.
+      </p>
+    </td>
+  </tr>
+);
+
+const EmptyState = () => (
+  <div className="px-6 py-16 text-center">
+    <div className="mx-auto w-12 h-12 bg-slate-50 flex items-center justify-center rounded-full mb-3">
+      <Filter className="text-slate-300" size={24} />
+    </div>
+    <p className="text-slate-400 text-sm font-medium">
+      No categories matching your filters.
+    </p>
+  </div>
+);
+
+const LoadingSkeleton = ({ count, mobile }: { count: number; mobile?: boolean }) => (
+  <>
+    {Array.from({ length: count }).map((_, i) =>
+      mobile ? (
+        <div key={i} className="p-5 space-y-4 animate-pulse">
+          <div className="h-6 bg-slate-100 rounded-md w-1/3" />
+          <div className="h-4 bg-slate-50 rounded-md w-full" />
+          <div className="flex justify-between pt-2">
+            <div className="h-6 bg-slate-100 rounded-full w-20" />
+            <div className="flex gap-2">
+              <div className="w-10 h-10 bg-slate-100 rounded-xl" />
+              <div className="w-10 h-10 bg-slate-100 rounded-xl" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <tr key={i} className="animate-pulse">
+          <td colSpan={4} className="px-6 py-6 border-b border-slate-50">
+            <div className="h-10 bg-slate-50/50 rounded-lg w-full" />
+          </td>
+        </tr>
+      )
+    )}
+  </>
+);
