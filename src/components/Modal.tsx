@@ -14,9 +14,9 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 bg-slate-900/60 z-50">
       <div
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0"
         onClick={onClose}
         aria-hidden="true"
       />

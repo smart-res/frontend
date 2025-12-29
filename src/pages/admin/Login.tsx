@@ -145,7 +145,7 @@ export default function Login() {
 
             {/* Server Error Message */}
             {serverError && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-100 animate-shake">
+              <div>
                 <p className="text-red-600 text-sm text-center font-medium">
                   {serverError}
                 </p>
