@@ -57,7 +57,7 @@ export const downloadTableQR = async (
       params: { format },
       responseType: "blob",
    });
-   return res.data;
+   return res;
 };
 
 export const downloadAllTableQRs = async (format: "zip" | "pdf" = "zip") => {

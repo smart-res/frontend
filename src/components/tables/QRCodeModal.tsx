@@ -11,6 +11,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import type { QRCodeModalProps } from "../../types/qrcode";
+import { downloadTableQR } from "../../api/admin/tables";
 
 const QRCodeModal = ({
   open,
@@ -36,6 +37,35 @@ const QRCodeModal = ({
   };
 
   const handleCancelRegenerate = () => setConfirmOpen(false);
+
+  const [downloading, setDownloading] = useState<"png" | "pdf" | null>(null);
+
+  const handleDownloadQR = async (format: "png" | "pdf" = "png") => {
+    try {
+      setDownloading(format);
+
+      const res = await downloadTableQR(tableId, format);
+      const disposition = res.headers?.["content-disposition"] as string | undefined;
+      const match = disposition?.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i);
+      const filename =
+        (match?.[1] ? decodeURIComponent(match[1]) : match?.[2]) ||
+        `table-${tableName}-qr.${format}`;
+
+      const blob = res.data as Blob;
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-4 animate-in fade-in duration-200">
@@ -86,20 +116,22 @@ const QRCodeModal = ({
               </div>
 
               <div className="flex flex-col w-full gap-2 sm:max-w-[240px] md:max-w-none">
-                <a
-                  href={qrUrl}
-                  download
-                  className="flex items-center justify-center gap-2 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-200 text-sm"
+                <button
+                  onClick={() => handleDownloadQR("png")}
+                  disabled={downloading !== null}
+                  className="flex items-center justify-center gap-2 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-200 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Download size={18} />
-                  Download PNG
-                </a>
+                  {downloading === "png" ? "Downloading..." : "Download PNG"}
+                </button>
+
                 <button
-                  onClick={() => window.print()}
-                  className="flex items-center justify-center gap-2 w-full py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition-all text-sm"
+                  onClick={() => handleDownloadQR("pdf")}
+                  disabled={downloading !== null}
+                  className="flex items-center justify-center gap-2 w-full py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition-all text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Printer size={18} />
-                  Print PDF
+                  {downloading === "pdf" ? "Downloading..." : "Download PDF"}
                 </button>
               </div>
             </div>

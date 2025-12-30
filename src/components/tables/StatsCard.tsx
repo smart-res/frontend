@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type StatsVariant = 'total' | 'active' | 'inactive';
+type StatsVariant = 'total' | 'active' | 'inactive'| 'occupied';
 
 export interface StatsCardProps {
   label: string;
@@ -24,6 +24,11 @@ const variantConfig: Record<
     text: 'text-green-600',
   },
   inactive: {
+    icon: '🚫',
+    bg: 'bg-rose-50',
+    text: 'text-rose-600',
+  },
+  occupied: {
     icon: '🚫',
     bg: 'bg-rose-50',
     text: 'text-rose-600',

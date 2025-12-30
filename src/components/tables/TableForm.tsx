@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { X, Users, MapPin, AlignLeft, CheckCircle2 } from 'lucide-react'; 
+import { X, Users, MapPin, AlignLeft, CheckCircle2, AlertCircle } from 'lucide-react'; 
 import type { Table } from '../../types/tables';
 import toast from "react-hot-toast";
 
@@ -110,7 +110,10 @@ const TableForm: React.FC<TableFormProps> = ({
                 className={`w-full bg-slate-50 border ${errors.tableNumber ? 'border-red-400 focus:ring-red-100' : 'border-slate-200 focus:ring-emerald-100'} rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-4 focus:border-emerald-500 transition-all`}
                 {...register('tableNumber', { required: 'Table number is required' })}
               />
-              {errors.tableNumber && <p className="text-red-500 text-sm font-semibold mt-1 px-1">{errors.tableNumber.message}</p>}
+              {errors.tableNumber && 
+                <p className="text-red-500 text-xs font-semibold mt-1 px-1">
+                  <AlertCircle size={12} />{errors.tableNumber.message}
+                </p>}
             </div>
 
             <div className="space-y-1.5">
@@ -136,7 +139,10 @@ const TableForm: React.FC<TableFormProps> = ({
                   })}
                 />
               </div>
-              {errors.capacity && <p className="text-red-500 text-sm font-semibold mt-1 px-1">{errors.capacity.message}</p>}
+              {errors.capacity && 
+                <p className="text-red-500 text-xs font-semibold mt-1 px-1">
+                  <AlertCircle size={12} />{errors.capacity.message}
+                </p>}
             </div>
           </div>
 
