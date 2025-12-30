@@ -4,7 +4,7 @@ import { Modal } from "../Modal";
 import type { ItemStatus, MenuItem } from "../../types/menuItem";
 import type { MenuCategory } from "../../types/menu";
 import { getCategoryId } from "../../utils/getCategoryId";
-import { AlertCircle, Star } from "lucide-react";
+import { AlertCircle, Star, Clock, Tag, DollarSign, Loader2 } from "lucide-react";
 
 type FormValues = {
   name: string;
@@ -37,6 +37,7 @@ export function ItemFormModal({
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     defaultValues: {
@@ -49,6 +50,8 @@ export function ItemFormModal({
       isChefRecommended: false,
     },
   });
+
+  const isRecommended = watch("isChefRecommended");
 
   useEffect(() => {
     if (!open) return;
@@ -63,25 +66,27 @@ export function ItemFormModal({
     });
   }, [open, initial?._id, reset]);
 
+  // UI Helpers
   const inputClasses = `
-    w-full rounded-2xl border-gray-200 bg-gray-50 px-4 py-3 text-sm 
+    w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm 
     outline-none transition-all duration-200 
     focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10
   `;
-
-  const labelClasses = "mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500 ml-1";
+  const labelClasses = "mb-1 block text-[11px] font-bold uppercase tracking-tight text-slate-400 ml-1";
 
   return (
     <Modal
       open={open}
-      title={mode === "create" ? "✨ Create New Dish" : "📝 Edit Menu Item"}
+      title={mode === "create" ? "New Creation" : "Edit Item"}
       onClose={onClose}
     >
       <form
-        className="flex flex-col h-full max-h-[85vh]" 
+        className="flex flex-col h-full max-h-[85vh] bg-white" 
         onSubmit={handleSubmit((v) => onSubmit(v))}
       >
-        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-6 custom-scrollbar min-h-0">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5 custom-scrollbar min-h-0">
+          
+          {/* Section: Main Info */}
           <div className="space-y-4">
             <div>
               <label className={labelClasses}>Dish Name</label>
@@ -89,16 +94,11 @@ export function ItemFormModal({
                 <input
                   placeholder="e.g. Wagyu Beef Burger"
                   className={`${inputClasses} ${errors.name ? "border-red-300 ring-red-500/10" : ""}`}
-                  {...register("name", {
-                    required: "What is the name of this dish?",
-                    minLength: { value: 2, message: "Name is too short" },
-                    maxLength: { value: 80, message: "Name is too long" },
-                  })}
+                  {...register("name", { required: "Name is required" })}
                 />
                 {errors.name && (
-                  <div className="mt-1.5 flex items-center gap-1 text-xs font-medium text-red-500 ml-1">
-                    <AlertCircle size={14} />
-                    {errors.name.message}
+                  <div className="mt-1 flex items-center gap-1 text-xs font-medium text-red-500 ml-1">
+                    <AlertCircle size={12} /> {errors.name.message}
                   </div>
                 )}
               </div>
@@ -107,104 +107,155 @@ export function ItemFormModal({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelClasses}>Category</label>
-                <select className={inputClasses} {...register("categoryId", { required: "Pick a category" })}>
+                <select
+                  className={`${inputClasses} ${errors.categoryId ? "border-red-300 ring-red-500/10" : ""}`}
+                  {...register("categoryId", { required: "Please select a category" })}
+                >
                   <option value="">Select...</option>
                   {categories.map((c) => (
-                    <option key={c._id} value={c._id}>{c.name}</option>
+                    <option key={c._id} value={c._id}>
+                      {c.name}
+                    </option>
                   ))}
                 </select>
+
+                {errors.categoryId && (
+                  <div className="mt-1 flex items-center gap-1 text-xs font-medium text-red-500 ml-1">
+                    <AlertCircle size={12} />
+                    {errors.categoryId.message}
+                  </div>
+                )}
               </div>
 
               <div>
-                <label className={labelClasses}>Price ($)</label>
+                <label className={labelClasses}>Price</label>
                 <div className="relative flex items-center">
-                   <span className="absolute left-4 text-gray-400 text-sm">$</span>
-                   <input
+                  <DollarSign size={14} className="absolute left-3.5 text-slate-400" />
+                  <input
                     type="number"
                     step="0.01"
-                    className={`${inputClasses} pl-8`}
+                    className={`${inputClasses} pl-8 font-semibold ${
+                      errors.price ? "border-red-300 ring-red-500/10" : ""
+                    }`}
                     {...register("price", {
                       valueAsNumber: true,
-                      min: { value: 0.01, message: "Price > 0" },
+                      required: "Price is required",
+                      min: {
+                        value: 0.01,
+                        message: "Price must be greater than 0",
+                      },
                     })}
                   />
                 </div>
+
+                {errors.price && (
+                  <div className="mt-1 flex items-center gap-1 text-xs font-medium text-red-500 ml-1">
+                    <AlertCircle size={12} />
+                    {errors.price.message}
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="rounded-3xl bg-gray-50/50 p-5 space-y-4 border border-gray-100">
+          {/* Section: Secondary Info (Soft Card) */}
+          <div className="rounded-2xl bg-slate-50/80 p-4 space-y-4 border border-slate-100">
             <div>
               <label className={labelClasses}>Description</label>
               <textarea
-                rows={3}
-                placeholder="Tell your customers about this delicious dish..."
-                className={`${inputClasses} bg-white`}
+                rows={2}
+                placeholder="Brief details about this dish..."
+                className={`${inputClasses} bg-white resize-none`}
                 {...register("description")}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className={labelClasses}>Prep Time (Min)</label>
+                <label className={labelClasses}>Time (Min)</label>
                 <div className="relative">
+                  <Clock
+                    size={14}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
                   <input
                     type="number"
-                    className={`${inputClasses} bg-white`}
-                    {...register("prepTimeMinutes", { valueAsNumber: true })}
+                    className={`${inputClasses} bg-white pl-9 ${
+                      errors.prepTimeMinutes ? "border-red-300 ring-red-500/10" : ""
+                    }`}
+                    {...register("prepTimeMinutes", {
+                      valueAsNumber: true,
+                      required: "Preparation time is required",
+                      min: {
+                        value: 1,
+                        message: "Time must be greater than 0",
+                      },
+                    })}
                   />
                 </div>
+
+                {errors.prepTimeMinutes && (
+                  <div className="mt-1 flex items-center gap-1 text-xs font-medium text-red-500 ml-1">
+                    <AlertCircle size={12} />
+                    {errors.prepTimeMinutes.message}
+                  </div>
+                )}
               </div>
 
               <div>
-                <label className={labelClasses}>Availability</label>
+                <label className={labelClasses}>Status</label>
                 <select className={`${inputClasses} bg-white font-medium`} {...register("status")}>
-                  <option value="available">🟢 Available</option>
-                  <option value="unavailable">⚪ Unavailable</option>
-                  <option value="sold_out">🟠 Sold out</option>
+                  <option value="available">Available</option>
+                  <option value="unavailable">Unavailable</option>
+                  <option value="sold_out">Sold Out</option>
                 </select>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-4 rounded-2xl bg-indigo-50 border border-indigo-100 group transition-all hover:bg-indigo-100/50">
+          {/* Toggle Area */}
+          <div className={`
+            flex items-center justify-between p-4 rounded-xl border transition-all
+            ${isRecommended ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100'}
+          `}>
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-white rounded-xl shadow-sm">
-                <Star className={`transition-colors ${initial?.isChefRecommended ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} size={20} />
+              <div className={`p-2 rounded-lg ${isRecommended ? 'bg-white shadow-sm' : 'bg-slate-50'}`}>
+                <Star className={isRecommended ? "fill-amber-400 text-amber-400" : "text-slate-300"} size={18} />
               </div>
-              <div>
-                <p className="text-sm font-bold text-indigo-900">Chef's Recommendation</p>
-                <p className="text-xs text-indigo-600/70">Featured item on menu</p>
+              <div className="leading-tight">
+                <p className="text-sm font-bold text-slate-700">Chef's Selection</p>
+                <p className="text-[11px] text-slate-400">Highlight on main menu</p>
               </div>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" className="sr-only peer" {...register("isChefRecommended")} />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              <div className="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:bg-indigo-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2.5px] after:left-[2.5px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
             </label>
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-100 bg-white rounded-b-3xl">
-          <div className="flex gap-3">
+        {/* Action Footer */}
+        <div className="p-5 border-t border-slate-100 bg-white">
+          <div className="flex gap-1">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-2xl border border-gray-200 px-4 py-3.5 text-sm font-bold text-gray-600 transition-all hover:bg-gray-50 active:scale-[0.98]"
+              className="flex-1 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-400 transition-colors hover:text-slate-600 active:scale-95"
             >
               Cancel
             </button>
             <button
-              disabled={!!loading}
+              disabled={loading}
               type="submit"
-              className="flex-[2] rounded-2xl bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-200 transition-all hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none"
+              className="flex-1 items-center justify-center min-w-[120px] px-6 py-2.5 rounded-xl bg-emerald-600 text-sm font-semibold text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-70 disabled:pointer-events-none"
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Saving...
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Saving...</span>
                 </div>
               ) : (
-                "Save Menu Item"
+                "Save Item"
               )}
             </button>
           </div>

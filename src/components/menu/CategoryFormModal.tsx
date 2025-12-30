@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Modal } from "../Modal";
 import type { CategoryStatus, MenuCategory } from "../../types/menu";
+import { AlertCircle } from "lucide-react";
 
 type FormValues = {
   name: string;
@@ -102,8 +103,8 @@ export function CategoryFormModal({
               />
               <div className="mt-1.5 flex justify-between items-start">
                 {errors.name ? (
-                  <p className="flex items-center gap-1 text-sm font-medium text-red-500">
-                    {errors.name.message}
+                  <p className="flex items-center gap-1 text-xs font-medium text-red-500">
+                    <AlertCircle size={12} /> {errors.name.message}
                   </p>
                 ) : (
                   <p className="text-xs text-slate-400">Unique name for your menu section (2-50 chars)</p>
@@ -128,7 +129,9 @@ export function CategoryFormModal({
               />
               <div className="mt-1.5 flex justify-between">
                 {errors.description && (
-                  <p className="text-sm font-medium text-red-500">{errors.description.message}</p>
+                  <p className="text-xs font-medium text-red-500">
+                    <AlertCircle size={12} />{errors.description.message}
+                  </p>
                 )}
               </div>
             </div>
@@ -143,15 +146,35 @@ export function CategoryFormModal({
 
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Display Order</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Display Order
+              </label>
+
               <input
                 type="number"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm transition-all outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
+                step={1}
+                className={`w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm transition-all outline-none
+                  focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50
+                  ${errors.displayOrder ? "border-red-300 ring-red-500/10" : ""}
+                `}
                 {...register("displayOrder", {
                   valueAsNumber: true,
-                  min: { value: 0, message: "Must be 0 or more" },
+                  required: "Display order is required",
+                  min: {
+                    value: 1,
+                    message: "Display order must be greater than 0",
+                  },
+                  validate: (v) =>
+                    Number.isInteger(v) || "Display order must be an integer",
                 })}
               />
+
+              {errors.displayOrder && (
+                <div className="mt-1 flex items-center gap-1 text-xs font-medium text-red-500">
+                  <AlertCircle size={12} />
+                  {errors.displayOrder.message}
+                </div>
+              )}
             </div>
 
             <div>

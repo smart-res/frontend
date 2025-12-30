@@ -2,18 +2,19 @@ import { useEffect, useState } from "react";
 import type { Table } from "../../types/tables";
 import {
   getTables,
+  createTable,
   getTableQR,
+  updateTable,
   generateTableQR,
   updateTableStatus,
   regenerateAllTableQR,
+  downloadAllTableQRs,
 } from "../../api/admin/tables";
-import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import StatsCard from "../../components/tables/StatsCard";
 import TablesGrid from "../../components/tables/TablesGrid";
 import QRCodeModal from "../../components/tables/QRCodeModal";
 import TableForm from "../../components/tables/TableForm";
-import { createTable, updateTable } from "../../api/admin/tables";
 import {
   Plus,
   Download,
@@ -33,6 +34,10 @@ const Tables = () => {
   const [confirmRegenAllOpen, setConfirmRegenAllOpen] = useState(false);
   const [regenAllLoading, setRegenAllLoading] = useState(false);
   const [regenAllError, setRegenAllError] = useState<string | null>(null);
+  const [confirmToggleOpen, setConfirmToggleOpen] = useState(false);
+  const [toggleTarget, setToggleTarget] = useState<Table | null>(null);
+  const [toggleLoading, setToggleLoading] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   const [qrData, setQrData] = useState<{
     tableId: string;
@@ -84,10 +89,30 @@ const Tables = () => {
     );
   };
 
-  const handleToggleStatus = async (table: Table) => {
-    const newStatus = table.status === "active" ? "inactive" : "active";
-    await updateTableStatus(table.id, newStatus);
-    fetchTables();
+  const askToggleStatus = (table: Table) => {
+    setToggleError(null);
+    setToggleTarget(table);
+    setConfirmToggleOpen(true);
+  };
+
+  const confirmToggleStatus = async () => {
+    if (!toggleTarget) return;
+
+    try {
+      setToggleLoading(true);
+      setToggleError(null);
+
+      const newStatus = toggleTarget.status === "active" ? "inactive" : "active";
+      await updateTableStatus(toggleTarget.id, newStatus);
+
+      setConfirmToggleOpen(false);
+      setToggleTarget(null);
+      await fetchTables();
+    } catch (e: any) {
+      setToggleError(e?.response?.data?.message ?? "Failed to change table status");
+    } finally {
+      setToggleLoading(false);
+    }
   };
 
   const handleEdit = (table: Table) => {
@@ -105,22 +130,8 @@ const Tables = () => {
   };
 
   const handleDownloadAllQR = async () => {
-    const zip = new JSZip();
-    const activeTables = tables.filter((t) => t.status === "active");
-
-    for (const table of activeTables) {
-      if (!table.qrToken) continue;
-
-      const res = await fetch(`/api/admin/tables/${table.id}/qr/download?format=png`, {
-        credentials: "include",
-      });
-
-      const blob = await res.blob();
-      zip.file(`table-${table.tableNumber}-qr.png`, blob);
-    }
-
-    const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, "all-active-tables.zip");
+    const blob = await downloadAllTableQRs("zip");
+    saveAs(blob, "all-tables-qr.zip");
   };
 
   const askRegenerateAllQR = () => {
@@ -146,7 +157,7 @@ const Tables = () => {
 
   const total = tables.length;
   const active = tables.filter((t) => t.status === "active").length;
-  const inactive = tables.filter((t) => t.status === "inactive").length;
+  const occupied = tables.filter((t) => t.status === "occupied").length;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 space-y-8 font-sans">
@@ -185,10 +196,10 @@ const Tables = () => {
           icon={<CheckCircle2 className="text-emerald-600" />}
         />
         <StatsCard
-          label="Inactive"
-          value={inactive}
-          variant="inactive"
-          icon={<AlertCircle className="text-rose-600" />}
+          label="Occupied"
+          value={occupied}
+          variant="occupied"
+          icon={<AlertCircle className="text-amber-600" />}
         />
       </div>
 
@@ -227,7 +238,7 @@ const Tables = () => {
               tables={tables}
               onGetQR={handleGetQR}
               onEdit={handleEdit}
-              onToggleStatus={handleToggleStatus}
+              onToggleStatus={askToggleStatus}
             />
           )}
         </div>
@@ -269,6 +280,32 @@ const Tables = () => {
           error={regenAllError}
           onCancel={() => !regenAllLoading && setConfirmRegenAllOpen(false)}
           onConfirm={confirmRegenerateAllQR}
+        />
+      )}
+
+      {confirmToggleOpen && toggleTarget && (
+        <ConfirmDialog
+          title={
+            toggleTarget.status === "active"
+              ? `Deactivate table ${toggleTarget.tableNumber}?`
+              : `Activate table ${toggleTarget.tableNumber}?`
+          }
+          message={
+            toggleTarget.status === "active"
+              ? "Do you want to deactive this table?"
+              : "This will make the table available again."
+          }
+          confirmText={toggleLoading ? "Saving..." : "Confirm"}
+          cancelText="Cancel"
+          disabled={toggleLoading}
+          error={toggleError}
+          onCancel={() => {
+            if (toggleLoading) return;
+            setConfirmToggleOpen(false);
+            setToggleTarget(null);
+            setToggleError(null);
+          }}
+          onConfirm={confirmToggleStatus}
         />
       )}
     </div>

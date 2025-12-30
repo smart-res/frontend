@@ -18,6 +18,7 @@ import {
 } from "../../api/admin/menu";
 import type { CategoryStatus, MenuCategory } from "../../types/menu";
 import { CategoryFormModal } from "../../components/menu/CategoryFormModal";
+import { ConfirmModal } from "../../components/ConfirmModal";
 
 const LIMIT_OPTIONS = [10, 20, 50];
 
@@ -111,11 +112,21 @@ export default function MenuCategories() {
   }
 
 
-  async function toggleStatus(cat: MenuCategory) {
+  function requestToggleStatus(cat: MenuCategory) {
+    if (cat.status === "active") {
+      setDeactCat(cat);
+      setDeactOpen(true);
+      return;
+    }
+
+    void doToggleStatus(cat);
+  }
+
+  async function doToggleStatus(cat: MenuCategory) {
     const next: CategoryStatus = cat.status === "active" ? "inactive" : "active";
-    setRows((prev) =>
-      prev.map((r) => (r._id === cat._id ? { ...r, status: next } : r))
-    );
+
+    setRows((prev) => prev.map((r) => (r._id === cat._id ? { ...r, status: next } : r)));
+
     try {
       await patchAdminCategoryStatus(cat._id, next);
     } catch (e: any) {
@@ -123,6 +134,24 @@ export default function MenuCategories() {
       toast.error(e?.response?.data?.message ?? "Failed to change status");
     }
   }
+
+  // Handle delete
+  const [deactOpen, setDeactOpen] = useState(false);
+  const [deactCat, setDeactCat] = useState<MenuCategory | null>(null);
+  const [deactLoading, setDeactLoading] = useState(false);
+
+  async function confirmDeactivate() {
+  if (!deactCat) return;
+  setDeactLoading(true);
+
+  try {
+    await doToggleStatus(deactCat);
+    setDeactOpen(false);
+    setDeactCat(null);
+  } finally {
+    setDeactLoading(false);
+  }
+}
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] p-4 md:p-6 font-sans text-slate-900">
@@ -260,7 +289,7 @@ export default function MenuCategories() {
                           >
                             <Edit2 size={16} />
                           </button>
-                          <StatusToggle cat={cat} onToggle={toggleStatus} />
+                          <StatusToggle cat={cat} onToggle={requestToggleStatus} />
                         </div>
                       </td>
                     </tr>
@@ -301,7 +330,7 @@ export default function MenuCategories() {
                       >
                         <Edit2 size={18} />
                       </button>
-                      <StatusToggle cat={cat} onToggle={toggleStatus} />
+                      <StatusToggle cat={cat} onToggle={requestToggleStatus} />
                     </div>
                   </div>
                 </div>
@@ -369,6 +398,23 @@ export default function MenuCategories() {
         loading={saving}
         serverFieldError={formError}
       />
+
+      <ConfirmModal
+        open={deactOpen}
+        title="Deactivate category?"
+        description={
+          deactCat
+            ? `Deactivate "${deactCat.name}"? It will be hidden from the menu until you reactivate it.`
+            : "This will hide the category from the menu."
+        }
+        confirmText="Deactivate"
+        cancelText="Cancel"
+        tone="warning"
+        loading={deactLoading}
+        onClose={() => (!deactLoading ? (setDeactOpen(false), setDeactCat(null)) : null)}
+        onConfirm={confirmDeactivate}
+      />
+
     </div>
   );
 }

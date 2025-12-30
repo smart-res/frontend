@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { Modal } from "../Modal";
 import type { ModifierGroup, ModifierOption, ModifierSelectionType, ModifierStatus } from "../../types/menuModifiers";
@@ -70,6 +70,7 @@ export function ItemModifiersModal({
   const [newOptName, setNewOptName] = useState("");
   const [newOptPrice, setNewOptPrice] = useState<number>(0);
   const [newOptStatus, setNewOptStatus] = useState<ModifierStatus>("active");
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const form = useForm<CreateGroupForm>({
     mode: "onChange",
@@ -86,6 +87,12 @@ export function ItemModifiersModal({
 
   const selectionType = form.watch("selectionType");
   const isRequired = form.watch("isRequired");
+
+  useEffect(() => {
+    if (showCreate) {
+      scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [showCreate]);
 
   useEffect(() => {
     if (selectionType === "single") {
@@ -223,38 +230,75 @@ export function ItemModifiersModal({
     setOptionsMap((m) => ({ ...m, [groupId]: opts }));
   }
 
-  async function removeGroup(groupId: string) {
-    if (!confirm("Delete this modifier group?")) return;
-
-    setError(null);
-    try {
-      if (itemId && attached.includes(groupId)) {
-        const next = attached.filter((id) => id !== groupId);
-        const res = await setItemModifierGroups(itemId, next);
-        setAttached(res.modifierGroupIds ?? next);
-      }
-
-      await deleteModifierGroup(groupId);
-
-      await refresh();
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? "Delete group failed");
-    }
+  function removeGroup(groupId: string) {
+    const g = groups.find((x) => x._id === groupId);
+    openConfirm({
+      type: "group",
+      groupId,
+      title: "Delete modifier group?",
+      desc: `This will remove "${g?.name ?? "this group"}" and its options. This action can't be undone.`,
+    });
   }
 
-  async function removeOption(groupId: string, optionId: string) {
-    if (!confirm("Delete this option?")) return;
-    setError(null);
-    try {
-      await deleteModifierOption(optionId);
-      const opts = await getModifierOptions(groupId, "all");
-      setOptionsMap((m) => ({ ...m, [groupId]: opts }));
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? "Delete option failed");
-    }
+  function removeOption(groupId: string, optionId: string) {
+    const opt = (optionsMap[groupId] ?? []).find((x) => x._id === optionId);
+    openConfirm({
+      type: "option",
+      groupId,
+      optionId,
+      title: "Delete option?",
+      desc: `Delete "${opt?.name ?? "this option"}"? This action can't be undone.`,
+    });
   }
 
   const attachedSet = useMemo(() => new Set(attached), [attached]);
+
+  // Handle confirm
+  type ConfirmState =
+    | null
+    | { type: "group"; groupId: string; title: string; desc?: string }
+    | { type: "option"; groupId: string; optionId: string; title: string; desc?: string };
+
+  const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [confirming, setConfirming] = useState(false);
+
+  function openConfirm(next: ConfirmState) {
+    setConfirmState(next);
+  }
+
+  async function handleConfirmDelete() {
+    if (!confirmState) return;
+
+    setConfirming(true);
+    setError(null);
+
+    try {
+      if (confirmState.type === "group") {
+        const groupId = confirmState.groupId;
+
+        if (itemId && attached.includes(groupId)) {
+          const next = attached.filter((id) => id !== groupId);
+          const res = await setItemModifierGroups(itemId, next);
+          setAttached(res.modifierGroupIds ?? next);
+        }
+
+        await deleteModifierGroup(groupId);
+        await refresh();
+      }
+
+      if (confirmState.type === "option") {
+        await deleteModifierOption(confirmState.optionId);
+        const opts = await getModifierOptions(confirmState.groupId, "all");
+        setOptionsMap((m) => ({ ...m, [confirmState.groupId]: opts }));
+      }
+
+      setConfirmState(null);
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? "Delete failed");
+    } finally {
+      setConfirming(false);
+    }
+  }
 
 return (
     <Modal open={open} title="Manage Modifiers" onClose={onClose as any}>
@@ -280,7 +324,7 @@ return (
 
             <button
               onClick={() => setShowCreate(!showCreate)}
-              className="flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-black active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 text-xs bg-[#1A2F2F] hover:bg-[#E2B13C] hover:text-[#1A2F2F] rounded-xl font-bold text-white transition-all shadow-md active:scale-95"
             >
               <Plus size={16} />
               New Group
@@ -288,55 +332,65 @@ return (
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar min-h-0">
-          {showCreate && (
-            <form
-              onSubmit={form.handleSubmit(handleCreateGroup)}
-              className="rounded-3xl border-2 border-indigo-100 bg-indigo-50/30 p-5 space-y-4 animate-in fade-in zoom-in duration-200"
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 ml-1">Group Name</label>
-                  <input
-                    {...form.register("name", { required: true })}
-                    placeholder="e.g. Choose your Protein"
-                    className="w-full rounded-2xl border-none bg-white px-4 py-2.5 text-sm shadow-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 ml-1">Selection Type</label>
-                  <div className="flex p-1 bg-white rounded-2xl shadow-sm">
-                    {["single", "multiple"].map((type) => (
-                      <label key={type} className="flex-1">
-                        <input type="radio" value={type} {...form.register("selectionType")} className="sr-only peer" />
-                        <span className="flex items-center justify-center py-1.5 text-xs font-bold rounded-xl cursor-pointer transition-all peer-checked:bg-indigo-600 peer-checked:text-white text-gray-400">
-                          {type}
-                        </span>
-                      </label>
-                    ))}
+        <div 
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar min-h-0"
+        >
+          <div
+            className={[
+              "overflow-hidden transition-all duration-300 ease-out",
+              showCreate ? "max-h-[520px] opacity-100 translate-y-0" : "max-h-0 opacity-0 -translate-y-2",
+            ].join(" ")}
+          >
+            <div className="pt-0">
+              <form
+                onSubmit={form.handleSubmit(handleCreateGroup)}
+                className="rounded-3xl border-2 border-indigo-100 bg-indigo-50/30 p-5 space-y-4 animate-in fade-in zoom-in duration-200"
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-600 ml-1">Group Name</label>
+                    <input
+                      {...form.register("name", { required: true })}
+                      placeholder="e.g. Choose your Protein"
+                      className="w-full rounded-2xl border-none bg-white px-4 py-2.5 text-sm shadow-sm focus:ring-2 focus:ring-slate-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-600 ml-1">Selection Type</label>
+                    <div className="flex p-1 bg-white rounded-2xl shadow-sm">
+                      {["single", "multiple"].map((type) => (
+                        <label key={type} className="flex-1">
+                          <input type="radio" value={type} {...form.register("selectionType")} className="sr-only peer" />
+                          <span className="flex items-center justify-center py-1.5 text-xs font-bold rounded-xl cursor-pointer transition-all peer-checked:bg-indigo-600 peer-checked:text-white text-gray-400">
+                            {type}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center justify-between bg-white/50 p-3 rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-xl ${isRequired ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'}`}>
-                    <CheckCircle2 size={18} />
+                
+                <div className="flex items-center justify-between bg-white/50 p-3 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl ${isRequired ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'}`}>
+                      <CheckCircle2 size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-800">Is Required?</p>
+                      <p className="text-[10px] text-gray-500 font-medium">Customer must pick an option</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-800">Is Required?</p>
-                    <p className="text-[10px] text-gray-500 font-medium">Customer must pick an option</p>
-                  </div>
+                  <Controller control={form.control} name="isRequired" render={({ field }) => <Toggle value={!!field.value} onChange={field.onChange} />} />
                 </div>
-                <Controller control={form.control} name="isRequired" render={({ field }) => <Toggle value={!!field.value} onChange={field.onChange} />} />
-              </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-xs font-bold text-gray-500">Cancel</button>
-                <button type="submit" className="rounded-xl bg-indigo-600 px-6 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-200">Create Group</button>
-              </div>
-            </form>
-          )}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-xs font-bold text-gray-500">Cancel</button>
+                  <button type="submit" className="rounded-xl bg-indigo-600 px-6 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-200">Create Group</button>
+                </div>
+              </form>
+            </div>
+          </div>
 
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center text-gray-400">
@@ -377,7 +431,7 @@ return (
                           {isAttached ? 'Detach' : 'Attach'}
                         </button>
                         
-                        <button onClick={() => openAddOption(g._id)} className="p-2 rounded-xl bg-white border text-gray-400 hover:text-indigo-600 hover:border-indigo-200 transition-all">
+                        <button onClick={() => openAddOption(g._id)} className="p-2 rounded-xl bg-white border text-gray-400 hover:text-[#E2B13C] hover:border-[#E2B13C] transition-all">
                           <Plus size={18} />
                         </button>
                         
@@ -454,12 +508,58 @@ return (
         <div className="p-4 border-t bg-white rounded-b-3xl">
           <button
             onClick={() => onClose()}
-            className="w-full py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-2xl text-sm transition-all"
+            className="w-full py-3.5 rounded-xl bg-emerald-600 text-sm font-semibold text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-70 disabled:pointer-events-none"
           >
             Finished Configuration
           </button>
         </div>
       </div>
+      
+      <Modal
+        open={!!confirmState}
+        title={confirmState?.title ?? "Confirm"}
+        onClose={() => (!confirming ? setConfirmState(null) : null)}
+      >
+        <div className="p-4 space-y-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 p-3">
+            <div className="mt-0.5 text-red-600">
+              <AlertCircle size={18} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-red-700">
+                {confirmState?.title}
+              </p>
+              {confirmState?.desc && (
+                <p className="mt-1 text-xs font-medium text-red-600/90">
+                  {confirmState.desc}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              disabled={confirming}
+              onClick={() => setConfirmState(null)}
+              className="px-4 py-2 text-xs font-bold text-gray-600 hover:text-gray-900 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              disabled={confirming}
+              onClick={handleConfirmDelete}
+              className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-red-200 hover:bg-red-700 active:scale-95 disabled:opacity-70"
+            >
+              {confirming ? <Loader2 size={14} className="animate-spin" /> : null}
+              Delete
+            </button>
+          </div>
+        </div>
+      </Modal>
+
     </Modal>
   );
 }
