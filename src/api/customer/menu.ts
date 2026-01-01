@@ -16,15 +16,17 @@ export type CustomerMenuResponse = {
   categories: { id: string; name: string; displayOrder: number }[];
   items: {
     id: string;
+    categoryId?: string;
     name: string;
     description?: string;
     price: number;
     status: string;
     canOrder: boolean;
     isChefRecommended?: boolean;
+    ratingAvg?: number;
+    ratingCount?: number;
     primaryPhotoUrl?: string | null;
     modifierGroups: any[];
-    categoryId?: string;
   }[];
 };
 

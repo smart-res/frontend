@@ -8,6 +8,9 @@ import ProtectedRoute from "./ProtectedRoute";
 import MenuItems from "../pages/admin/MenuItems";
 import CustomerMenuPage from "../pages/customer/CustomerMenuPage";
 import CustomerLayout from "../layouts/CustomerLayout";
+import CustomerItemDetailPage from "../pages/customer/CustomerMenuDetail";
+import CustomerLoginPage from "../pages/customer/CustomerLogin";
+import CustomerRegisterPage from "../pages/customer/CustomerRegister";
 
 export default function AppRoute() {
   return (
@@ -21,7 +24,10 @@ export default function AppRoute() {
           </ProtectedRoute>
         }
       >
+        <Route path="/customer/login" element={<CustomerLoginPage />} />
+        <Route path="/customer/register" element={<CustomerRegisterPage />} />
         <Route path="/customer/menu" element={<CustomerMenuPage />} />
+        <Route path="/customer/menu/:id" element={<CustomerItemDetailPage />} />
       </Route>
 
       <Route
