@@ -20,7 +20,7 @@ export interface TableFormData {
   description?: string,
 }
 
-const LOCATIONS = ['Indoor', 'Outdoor', 'Patio', 'VIP Room', 'Custom'];
+const LOCATIONS = ['Indoor', 'Outdoor', 'Patio', 'VIP Room', 'Main Hall'];
 
 const TableForm: React.FC<TableFormProps> = ({
   open,

@@ -8,8 +8,8 @@ const MENU_SECTIONS = [
   {
     title: 'Customer app',
     items: [
-      { label: 'Login', to: '/user/login' },
-      { label: 'Register', to: '/user/register' },
+      { label: 'Login', to: '/customer/login' },
+      { label: 'Register', to: '/customer/register' },
       { label: 'Menu', to: '/customer/menu' },
     ],
   },
