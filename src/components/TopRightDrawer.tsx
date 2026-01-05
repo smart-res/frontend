@@ -20,6 +20,7 @@ const MENU_SECTIONS = [
       { label: 'Menu Items', to: '/menu/items' },
       { label: 'Categories', to: '/menu/categories' },
       { label: 'Tables', to: '/tables' },
+      { label: 'Accounts', to: '/accounts' },
     ],
   },
 ];
