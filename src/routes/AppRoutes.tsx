@@ -11,6 +11,7 @@ import CustomerLayout from "../layouts/CustomerLayout";
 import CustomerItemDetailPage from "../pages/customer/CustomerMenuDetail";
 import CustomerLoginPage from "../pages/customer/CustomerLogin";
 import CustomerRegisterPage from "../pages/customer/CustomerRegister";
+import AccountsPage from "../pages/admin/AccountsPage";
 
 export default function AppRoute() {
   return (
@@ -41,6 +42,7 @@ export default function AppRoute() {
         <Route path="/tables" element={<Tables />} />
         <Route path="/menu/categories" element={<MenuCategories />} />
         <Route path="/menu/items" element={<MenuItems />} />
+        <Route path="/accounts" element={<AccountsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
